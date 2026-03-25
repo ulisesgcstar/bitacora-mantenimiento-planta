@@ -13,3 +13,9 @@ Este script actúa como el orquestador principal del sistema. Realiza las siguie
 - **LIST**: Genera un desplegable. Si el texto incluye 'Planta' o 'Inspector', jala datos de los catálogos automáticamente.
 - **GRID**: Cuadrícula de opción única.
 - **CHECKBOX_GRID**: Cuadrícula donde se pueden marcar varias opciones por fila.
+- **TEXT / PARAGRAPH**: Respuestas abiertas (cortas y largas).
+- **DATE / TIME**: Captura de fecha y hora exactas.
+- **FILE_UPLOAD**: Genera un espacio para carga de evidencias fotográficas.
+
+### Agrupación Dinámica (Cuadrículas)
+Para que varias preguntas formen una sola tabla en el formulario, deben tener exactamente el mismo texto en la columna **GRUPO_CUADRICULA** y estar juntas en la tabla de Excel. Soporta tanto GRID como CHECKBOX_GRID.

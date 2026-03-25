@@ -16,9 +16,7 @@ function getConfig() {
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("_CONFIG_");
     const data = sheet.getRange("A2:B10").getValues();
     let config = {};
-    data.forEach(row => {
-        if (row[0]) config[row[0]] = row[1];
-    });
+    data.forEach(row => { if (row[0]) config[row[0]] = row[1]; });
     return config;
 }
 
@@ -27,82 +25,96 @@ function generarEstructuraCompleta() {
     const form = FormApp.openById(conf.ID_FORMULARIO);
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    Logger.log("Iniciando construcción...");
+    Logger.log("Iniciando reconstrucción lineal estricta...");
 
-    // Limpieza total del formulario
+    // 1. Limpieza total
     const items = form.getItems();
     items.forEach(item => form.deleteItem(item));
 
-    // --- 1. SECCIÓN GLOBAL_INICIO ---
-    form.addPageBreakItem().setTitle("1. DATOS DE IDENTIFICACIÓN");
-    const preguntasInicio = getPreguntasPorRevision(ss, "GLOBAL_INICIO");
-    procesarBloquePreguntas(form, preguntasInicio);
-
-    // --- 2. LÓGICA DE PERIODICIDAD ---
     const tiposRevision = getTiposActivos(ss);
     const periodicidades = [...new Set(tiposRevision.map(t => t.periodicidad))];
 
-    const sectionPeriodo = form.addPageBreakItem().setTitle("2. SELECCIÓN DE PERIODICIDAD");
-    const preguntaPeriodo = form.addListItem()
-        .setTitle("Seleccione la periodicidad de la revisión a realizar")
-        .setRequired(true);
+    // ==========================================
+    // CONSTRUCCIÓN FÍSICA (DE ARRIBA HACIA ABAJO)
+    // ==========================================
 
-    // --- 3. CREAR SECCIÓN FINAL PRIMERO (Para referencias de saltos) ---
-    const sectionFinal = form.addPageBreakItem().setTitle("EVIDENCIAS Y OBSERVACIONES FINAL");
-    const preguntasFinal = getPreguntasPorRevision(ss, "GLOBAL_FINAL");
-    procesarBloquePreguntas(form, preguntasFinal);
+    // --- A. INICIO ---
+    form.addPageBreakItem().setTitle("1. DATOS DE IDENTIFICACIÓN");
+    procesarBloquePreguntas(form, getPreguntasPorRevision(ss, "GLOBAL_INICIO"));
 
-    // --- 4. CREAR SECCIONES DE REVISIÓN (Cuerpo) ---
-    const seccionesDeRevision = {};
+    // --- B. SELECTOR PERIODICIDAD ---
+    form.addPageBreakItem().setTitle("2. SELECCIÓN DE PERIODICIDAD");
+    const itemPeriodo = form.addListItem().setTitle("Seleccione la frecuencia de la revisión").setRequired(true);
+
+    // --- C. MENÚS DE LISTADO POR PERIODICIDAD ---
+    const paginasSubMenu = {};
+    const itemsListaFormato = {};
+
+    periodicidades.forEach(p => {
+        paginasSubMenu[p] = form.addPageBreakItem().setTitle("LISTADO: " + p);
+        itemsListaFormato[p] = form.addListItem().setTitle("Seleccione el formato específico de " + p).setRequired(true);
+    });
+
+    // --- D. REVISIONES (CUERPOS) ---
+    const paginasRevision = {};
     tiposRevision.forEach(tipo => {
-        const section = form.addPageBreakItem()
-            .setTitle(tipo.nombre)
-            .setGoToPage(sectionFinal); // Salto automático al terminar la revisión
-
-        const preguntas = getPreguntasPorRevision(ss, tipo.id);
-        procesarBloquePreguntas(form, preguntas);
-        seccionesDeRevision[tipo.id] = section;
+        paginasRevision[tipo.id] = form.addPageBreakItem().setTitle(tipo.nombre);
+        procesarBloquePreguntas(form, getPreguntasPorRevision(ss, tipo.id));
     });
 
-    // --- 5. CONECTAR MENÚS DE PERIODICIDAD ---
-    const choicesPeriodo = [];
-    periodicidades.forEach(periodo => {
-        const subSeccionMenu = form.addPageBreakItem().setTitle("LISTADO: " + periodo);
-        const listaFormatos = form.addListItem().setTitle("Seleccione el formato " + periodo);
+    // --- E. FINAL ---
+    const pageFinal = form.addPageBreakItem().setTitle("EVIDENCIAS Y OBSERVACIONES FINAL");
+    procesarBloquePreguntas(form, getPreguntasPorRevision(ss, "GLOBAL_FINAL"));
 
+    // Al terminar esta última sección, el formulario DEBE ENVIARSE
+    pageFinal.setGoToPage(FormApp.PageNavigationType.SUBMIT);
+
+    // ==========================================
+    // CABLEADO DE SALTOS (NAVEGACIÓN)
+    // ==========================================
+
+    // 1. Conectar Revisiones -> Sección Final
+    tiposRevision.forEach(tipo => {
+        paginasRevision[tipo.id].setGoToPage(pageFinal);
+    });
+
+    // 2. Conectar Sub-Menús -> Revisiones
+    periodicidades.forEach(p => {
+        const itemLista = itemsListaFormato[p];
         const choicesFormato = tiposRevision
-            .filter(t => t.periodicidad === periodo)
-            .map(t => listaFormatos.createChoice(t.nombre, seccionesDeRevision[t.id]));
+            .filter(t => t.periodicidad === p)
+            .map(t => itemLista.createChoice(t.nombre, paginasRevision[t.id]));
 
-        listaFormatos.setChoices(choicesFormato);
-        choicesPeriodo.push(preguntaPeriodo.createChoice(periodo, subSeccionMenu));
+        itemLista.setChoices(choicesFormato);
     });
 
-    preguntaPeriodo.setChoices(choicesPeriodo);
+    // 3. Conectar Selector Principal -> Sub-Menús
+    const choicesSelector = periodicidades.map(p => {
+        return itemPeriodo.createChoice(p, paginasSubMenu[p]);
+    });
+    itemPeriodo.setChoices(choicesSelector);
+
     Logger.log("Sincronización Exitosa.");
 }
 
-/**
- * Maneja la agrupación de preguntas tipo GRID basadas en GRUPO_CUADRICULA
- */
+// --- FUNCIONES DE DIBUJO Y SOPORTE ---
+
 function procesarBloquePreguntas(form, preguntas) {
     let i = 0;
     while (i < preguntas.length) {
         const p = preguntas[i];
 
-        // Si es un GRID y tiene un nombre de grupo, buscamos a sus "compañeros"
-        if (p.tipo === 'GRID' && p.cuadricula) {
-            const mismoGrupo = preguntas.filter(x => x.cuadricula === p.cuadricula && x.tipo === 'GRID');
+        // Soporte para agrupar tanto GRID como CHECKBOX_GRID
+        if ((p.tipo === 'GRID' || p.tipo === 'CHECKBOX_GRID') && p.cuadricula) {
+            const mismoGrupo = preguntas.filter(x => x.cuadricula === p.cuadricula && x.tipo === p.tipo);
             const filas = mismoGrupo.map(x => x.texto);
-            const opciones = getEscalaOpciones(p.escala);
 
-            form.addGridItem()
-                .setTitle(p.cuadricula)
-                .setRows(filas)
-                .setColumns(opciones)
-                .setRequired(true);
-
-            i += mismoGrupo.length; // Saltamos las preguntas que ya agrupamos
+            if (p.tipo === 'GRID') {
+                form.addGridItem().setTitle(p.cuadricula).setRows(filas).setColumns(getEscalaOpciones(p.escala)).setRequired(true);
+            } else {
+                form.addCheckboxGridItem().setTitle(p.cuadricula).setRows(filas).setColumns(getEscalaOpciones(p.escala)).setRequired(true);
+            }
+            i += mismoGrupo.length;
         } else {
             dibujarPreguntaIndividual(form, p);
             i++;
@@ -115,74 +127,65 @@ function dibujarPreguntaIndividual(form, p) {
     switch (p.tipo) {
         case 'TEXT': form.addTextItem().setTitle(p.texto).setRequired(true); break;
         case 'PARAGRAPH': form.addParagraphTextItem().setTitle(p.texto); break;
-        case 'DATE': form.addDateItem().setTitle(p.texto); break;
-        case 'TIME': form.addTimeItem().setTitle(p.texto); break;
+        case 'DATE': form.addDateItem().setTitle(p.texto).setRequired(true); break;
+        case 'TIME': form.addTimeItem().setTitle(p.texto).setRequired(true); break;
         case 'LIST':
-            // Si la pregunta es "Planta" o "Inspector", cargamos los catálogos
             let opciones = [];
-            if (p.texto.toLowerCase().includes("planta")) opciones = getListaColumna(ss, "CAT_PLANTAS", 1);
-            else if (p.texto.toLowerCase().includes("inspector")) opciones = getListaColumna(ss, "CAT_USUARIOS", 1);
-            else opciones = getEscalaOpciones(p.escala);
-
-            form.addListItem().setTitle(p.texto).setChoiceValues(opciones).setRequired(true);
+            const t = p.texto.toLowerCase();
+            if (t.includes("planta") || t.includes("ubicación")) {
+                opciones = getListaColumna(ss, "CAT_PLANTAS", 2);
+            } else if (t.includes("quien") || t.includes("inspector") || t.includes("realiza")) {
+                opciones = getListaColumna(ss, "CAT_USUARIOS", 2);
+            } else {
+                opciones = getEscalaOpciones(p.escala);
+            }
+            form.addListItem().setTitle(p.texto).setChoiceValues(opciones.length > 0 ? opciones : ["Sin datos"]).setRequired(true);
             break;
         case 'FILE_UPLOAD':
-            form.addSectionHeaderItem().setTitle(p.texto).setHelpText("Suba sus evidencias (Máx 10 fotos).");
+            form.addSectionHeaderItem().setTitle(p.texto).setHelpText("Suba evidencias (Máx 10 fotos).");
+            break;
+        case 'GRID':
+            form.addGridItem().setTitle(p.texto).setRows([p.texto]).setColumns(getEscalaOpciones(p.escala)).setRequired(true);
             break;
         case 'CHECKBOX_GRID':
-            const colCheck = getEscalaOpciones(p.escala);
-            form.addCheckboxGridItem().setTitle(p.texto).setRows([p.texto]).setColumns(colCheck).setRequired(true);
+            form.addCheckboxGridItem().setTitle(p.texto).setRows([p.texto]).setColumns(getEscalaOpciones(p.escala)).setRequired(true);
             break;
+        default:
+            Logger.log("Tipo no soportado o mal escrito en la base: " + p.tipo);
     }
 }
 
-// Nueva función de soporte para leer catálogos simples
-function getListaColumna(ss, nombreHoja, columna) {
+function getListaColumna(ss, nombreHoja, numCol) {
     const sheet = ss.getSheetByName(nombreHoja);
-    if (!sheet) return ["Hoja no encontrada"];
+    if (!sheet) return [];
     const values = sheet.getDataRange().getValues();
-    values.shift(); // Quitar encabezado
-    return values.map(row => row[columna - 1].toString()).filter(item => item !== "");
+    values.shift();
+    return values.map(row => row[numCol - 1]).filter(val => val && val !== "").map(val => val.toString());
 }
 
-/**
- * FUNCIONES DE SOPORTE (Lectura de Sheets)
- */
-function getPreguntasPorRevision(ss, idRevision) {
+function getPreguntasPorRevision(ss, id) {
     const sheet = ss.getSheetByName("CAT_PREGUNTAS");
     const values = sheet.getDataRange().getValues();
-    values.shift(); // Quitar encabezado
-    return values
-        .filter(row => row[1] === idRevision && row[7] === true)
-        .map(row => ({
-            id: row[0],
-            idRevision: row[1],
-            grupo: row[2],
-            cuadricula: row[3],
-            texto: row[4],
-            tipo: row[5],
-            escala: row[6]
-        }));
+    values.shift();
+    return values.filter(row => row[1] === id && row[7] === true)
+        .map(row => ({ id: row[0], idRevision: row[1], grupo: row[2], cuadricula: row[3], texto: row[4], tipo: row[5], escala: row[6] }));
 }
 
 function getTiposActivos(ss) {
     const sheet = ss.getSheetByName("CAT_TIPO_REVISION");
     const values = sheet.getDataRange().getValues();
     values.shift();
-    return values
-        .filter(row => row[4] === true)
+    return values.filter(row => row[4] === true)
         .map(row => ({ id: row[0], nombre: row[1], categoria: row[2], periodicidad: row[3] }));
 }
 
-function getEscalaOpciones(idEscala) {
+function getEscalaOpciones(id) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName("CAT_ESCALAS");
     if (!sheet) return ["N/A"];
     const values = sheet.getDataRange().getValues();
-    const fila = values.find(row => row[0] === idEscala);
-    return fila ? fila[1].toString().split(",").map(item => item.trim()) : ["N/A"];
+    const fila = values.find(row => row[0] === id);
+    return fila ? fila[1].toString().split(",").map(i => i.trim()) : ["N/A"];
 }
 
-function syncCatalogos() {
-    SpreadsheetApp.getUi().alert("Función de sincronización rápida de listas en desarrollo.");
-}
+function syncCatalogos() { SpreadsheetApp.getUi().alert("Función rápida en desarrollo."); }
