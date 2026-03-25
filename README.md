@@ -9,3 +9,7 @@ Este script actúa como el orquestador principal del sistema. Realiza las siguie
 2. Construcción de Secciones Globales (Inicio y Fin).
 3. Generación de Lógica de Ramificación (Saltos por Periodicidad).
 4. Inyección de Inspecciones Dinámicas basadas en estados TRUE/FALSE.
+### Diccionario de TIPO_CONTROL
+- **LIST**: Genera un desplegable. Si el texto incluye 'Planta' o 'Inspector', jala datos de los catálogos automáticamente.
+- **GRID**: Cuadrícula de opción única.
+- **CHECKBOX_GRID**: Cuadrícula donde se pueden marcar varias opciones por fila.
