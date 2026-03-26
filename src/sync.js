@@ -51,7 +51,9 @@ function updateFormMetadata(form, settings) {
 }
 
 /**
- * Actualiza los desplegables de Plantas y Usuarios.
+ * Actualiza o crea las preguntas de tipo lista basadas en los catálogos.
+ * @param {GoogleAppsScript.Forms.Form} form
+ * @param {Object} settings
  */
 function syncListItems(form, settings) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -72,18 +74,25 @@ function syncListItems(form, settings) {
         const sheet = ss.getSheetByName(map.sheetName);
         const data = sheet.getDataRange().getValues().slice(1);
 
+        // Filtramos solo los registros que tienen TRUE en la última columna (_ACTIVO)
         const activeOptions = data
             .filter((row) => row[row.length - 1] === true)
             .map((row) => row[map.column]);
 
-        const item = form
+        // Intentamos encontrar la pregunta tipo LISTA (Dropdown)
+        let item = form
             .getItems(FormApp.ItemType.LIST)
             .find((i) => i.getTitle() === map.questionTitle);
 
-        if (item) {
-            item.asListItem().setChoiceValues(activeOptions);
-            console.log(`Lista actualizada: ${map.questionTitle}`);
+        // LÓGICA DE AUTO-CREACIÓN: Si no existe, la inyectamos al inicio
+        if (!item) {
+            item = form.addListItem().setTitle(map.questionTitle).setRequired(true);
+            console.log(`Pregunta creada automáticamente: ${map.questionTitle}`);
         }
+
+        // Inyectamos las opciones frescas del catálogo
+        item.asListItem().setChoiceValues(activeOptions);
+        console.log(`Opciones sincronizadas para: ${map.questionTitle}`);
     });
 }
 
