@@ -49,3 +49,9 @@ El sistema se comporta como un intérprete de catálogos maestros:
 
 - **Jerarquía Automática:** Organización de archivos mediante estructura Año/Mes creada en tiempo de ejecución.
 - **Portabilidad:** El sistema es agnóstico a la cuenta de Google; se auto-configura basándose únicamente en el `ID_CARPETA_RAIZ`.
+
+### 7. Motor de Renderizado Legal
+
+- **Inyección por Tags:** Sustitución dinámica de marcadores de posición (`{{tag}}`) para personalización de reportes.
+- **Generación PDF:** Conversión nativa de documentos para garantizar la inalterabilidad de los registros de inspección.
+- **Optimización de Almacenamiento:** Sistema de limpieza automática de archivos temporales post-procesamiento.
