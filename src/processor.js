@@ -213,3 +213,64 @@ function sanitizeData(data) {
         respuestas: data.respuestasRaw
     };
 }
+
+/**
+ * @fileoverview Motor de procesamiento - Fase de Inyección y Conversión.
+ */
+
+// ... (onFormSubmit se mantiene igual, pero añadimos el llamado a createPDF)
+
+function onFormSubmit(e) {
+    try {
+        const settings = CONFIG.getSettings();
+        const responseData = extractResponseData(e);
+        const cleanData = sanitizeData(responseData);
+        const dataMapping = createMapping(cleanData, settings);
+        const folder = getDestinationFolder(settings.ID_CARPETA_RAIZ);
+
+        // 5. GENERACIÓN DE PDF (Nueva Fase)
+        const pdfFile = createPDF(dataMapping, folder, settings);
+        console.log(`Reporte generado: ${pdfFile.getName()}`);
+
+        console.log('--- Procesamiento Finalizado con Éxito ---');
+    } catch (error) {
+        console.error('Error en el procesamiento:', error.toString());
+    }
+}
+
+/**
+ * Crea un PDF a partir de la plantilla Doc y el mapa de etiquetas.
+ * @param {Object} mapping Diccionario de {{tag}}: valor.
+ * @param {GoogleAppsScript.Drive.Folder} folder Carpeta de destino.
+ * @param {Object} settings Configuración global.
+ * @returns {GoogleAppsScript.Drive.File} El archivo PDF generado.
+ */
+function createPDF(mapping, folder, settings) {
+    const templateId = settings.ID_PLANTILLA_DOC;
+    const nombreArchivo = `REPORTE_${mapping['{{id_revision}}']}_${mapping['{{planta}}']}_${mapping['{{fecha}}']}`;
+
+    // 1. Crear copia temporal de la plantilla
+    const copy = DriveApp.getFileById(templateId).makeCopy(nombreArchivo, folder);
+    const doc = DocumentApp.openById(copy.getId());
+    const body = doc.getBody();
+
+    // 2. Inyectar datos (Sustitución de Tags)
+    // Recorremos el mapa y reemplazamos cada {{tag}} en el documento
+    Object.keys(mapping).forEach(tag => {
+        body.replaceText(tag, mapping[tag] || 'N/A');
+    });
+
+    // 3. Guardar y cerrar para aplicar cambios
+    doc.saveAndClose();
+
+    // 4. Convertir a PDF y limpiar
+    const pdfBlob = copy.getAs(MimeType.PDF);
+    const pdfFile = folder.createFile(pdfBlob);
+
+    // Borramos la copia de Google Docs para dejar solo el PDF (limpieza de servidor)
+    copy.setTrashed(true);
+
+    return pdfFile;
+}
+
+// ... (getDestinationFolder, createMapping, etc., se mantienen abajo)
