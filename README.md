@@ -34,3 +34,13 @@ El sistema se comporta como un intérprete de catálogos maestros:
 ### 3. UX Dinámica
 
 - **Auto-etiquetado:** El formulario actualiza su título y descripción legal en tiempo real basándose en el catálogo de revisiones, eliminando la confusión del operador en campo.
+
+### 4. Motor de Procesamiento (`processor.js`)
+
+- **Arquitectura de Pipeline:** El flujo de datos sigue una secuencia lógica: Identificación -> Limpieza -> Mapeo.
+- **Normalización de Respuestas:** Transforma eventos de formulario en objetos JSON estructurados para facilitar la generación de documentos legales.
+
+### 5. Interfaz y Automatización (`main.js`)
+
+- **Custom UI:** Menú nativo en Google Sheets para una operación sin código.
+- **Auto-Trigger Setup:** Instalación programática de disparadores de evento, garantizando que el pipeline de datos se active automáticamente tras cada captura.
