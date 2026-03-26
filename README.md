@@ -44,3 +44,8 @@ El sistema se comporta como un intérprete de catálogos maestros:
 
 - **Custom UI:** Menú nativo en Google Sheets para una operación sin código.
 - **Auto-Trigger Setup:** Instalación programática de disparadores de evento, garantizando que el pipeline de datos se active automáticamente tras cada captura.
+
+### 6. Gestión de Almacenamiento Dinámico
+
+- **Jerarquía Automática:** Organización de archivos mediante estructura Año/Mes creada en tiempo de ejecución.
+- **Portabilidad:** El sistema es agnóstico a la cuenta de Google; se auto-configura basándose únicamente en el `ID_CARPETA_RAIZ`.
