@@ -18,3 +18,19 @@ El sistema se comporta como un intérprete de catálogos maestros:
 - **Capa de Configuración:** Centralizada en la pestaña `_CONFIG_`.
 - **Capa de Catálogos:** `CAT_PLANTAS`, `CAT_USUARIOS`, `CAT_PREGUNTAS`.
 - **Capa de Procesamiento:** Motor `processor.js` (Fase de Identificación, Limpieza, Mapeo e Inyección).
+
+## ⚙️ Funcionalidades Core
+
+### 1. Sincronización Power (`sync.js`)
+
+- **Limpieza Total:** Antes de inyectar datos, el sistema garantiza que no existan residuos de configuraciones anteriores.
+- **Validación de Estatus:** Solo los registros marcados como activos en los catálogos maestros son desplegados en la interfaz del inspector.
+
+### 2. Motor de Preguntas Dinámicas
+
+- **Mapeo Relacional:** Vincula automáticamente preguntas con sus respectivas escalas de evaluación (C/NC/NA).
+- **Inyección por Contexto:** Filtra y construye el cuerpo del formulario basándose en la `ID_REVISION_ACTIVA`.
+
+### 3. UX Dinámica
+
+- **Auto-etiquetado:** El formulario actualiza su título y descripción legal en tiempo real basándose en el catálogo de revisiones, eliminando la confusión del operador en campo.
